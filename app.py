@@ -6,12 +6,6 @@ from io import BytesIO
 import streamlit.components.v1 as components
 import pandas as pd
 try:
-    import gspread
-    from google.oauth2.service_account import Credentials
-except Exception:
-    gspread = None
-    Credentials = None
-try:
     from reportlab.pdfgen import canvas
     from reportlab.lib.pagesizes import A4
 
@@ -39,8 +33,6 @@ st.set_page_config(
 # ══════════════════════════════════════════════════════════════════
 DATA_FILE = "quote_data.json"
 QUOTE_HISTORY_FILE = "quote_history.json"
-SHEET_DATA_TAB = "app_data"
-SHEET_HISTORY_TAB = "quote_history"
 WEEKDAY_ZH = ["一", "二", "三", "四", "五", "六", "日"]
 NOTICE_TEXT = (
     "注意事項：限定為當天航班使用。不得退改期。"
@@ -174,72 +166,10 @@ def _default_data() -> dict:
     return {"itineraries": [], "locations": {}, "agencies": [], "counters": []}
 
 
-def _sheet_client():
-    # Use Streamlit secrets to connect Google Sheet in cloud.
-    # Required secrets:
-    #   gcp_service_account = {... service account json ...}
-    #   SHEET_ID = "your_google_sheet_id"
-    if gspread is None or Credentials is None:
-        return None, None
-    try:
-        if "gcp_service_account" not in st.secrets or "SHEET_ID" not in st.secrets:
-            return None, None
-        creds = Credentials.from_service_account_info(
-            dict(st.secrets["gcp_service_account"]),
-            scopes=[
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive",
-            ],
-        )
-        client = gspread.authorize(creds)
-        sheet = client.open_by_key(str(st.secrets["SHEET_ID"]))
-        return client, sheet
-    except Exception:
-        return None, None
-
-
-def _read_json_from_sheet(tab_name: str):
-    _, sheet = _sheet_client()
-    if sheet is None:
-        return None
-    try:
-        ws = sheet.worksheet(tab_name)
-    except Exception:
-        try:
-            ws = sheet.add_worksheet(title=tab_name, rows=10, cols=2)
-            ws.update("A1:B1", [["key", "json"]])
-        except Exception:
-            return None
-    try:
-        payload = ws.acell("B2").value
-        if not payload:
-            return None
-        return json.loads(payload)
-    except Exception:
-        return None
-
-
-def _write_json_to_sheet(tab_name: str, payload) -> bool:
-    _, sheet = _sheet_client()
-    if sheet is None:
-        return False
-    try:
-        ws = sheet.worksheet(tab_name)
-    except Exception:
-        ws = sheet.add_worksheet(title=tab_name, rows=10, cols=2)
-    try:
-        ws.update("A1:B2", [["key", "json"], [tab_name, json.dumps(payload, ensure_ascii=False)]])
-        return True
-    except Exception:
-        return False
-
 # ══════════════════════════════════════════════════════════════════
 #  資料 IO
 # ══════════════════════════════════════════════════════════════════
 def load_data() -> dict:
-    sheet_data = _read_json_from_sheet(SHEET_DATA_TAB)
-    if isinstance(sheet_data, dict):
-        return sheet_data
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -247,16 +177,11 @@ def load_data() -> dict:
 
 
 def save_data(d: dict):
-    if _write_json_to_sheet(SHEET_DATA_TAB, d):
-        return
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(d, f, ensure_ascii=False, indent=2)
 
 
 def load_quote_history() -> list:
-    sheet_rows = _read_json_from_sheet(SHEET_HISTORY_TAB)
-    if isinstance(sheet_rows, list):
-        return sheet_rows
     if os.path.exists(QUOTE_HISTORY_FILE):
         with open(QUOTE_HISTORY_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -264,8 +189,6 @@ def load_quote_history() -> list:
 
 
 def save_quote_history(rows: list):
-    if _write_json_to_sheet(SHEET_HISTORY_TAB, rows):
-        return
     with open(QUOTE_HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(rows, f, ensure_ascii=False, indent=2)
 
@@ -693,270 +616,6 @@ def render_admin_panel() -> None:
                     st.info("此報到櫃台不存在。")
             else:
                 st.warning("請先選擇要刪除的報到櫃台。")
-
-    st.divider()
-
-    st.markdown("### 機票票價維護（flight_fares）")
-    st.caption("維護：航空公司＋出發地＋成人/兒童/敬老 去程/回程票價（單位：元）")
-    admin_flight_airline = st.selectbox("航空公司", AIRLINE_OPTIONS, key="admin_flight_airline")
-    admin_flight_airport = st.selectbox("出發地", AIRPORT_OPTIONS, key="admin_flight_airport")
-
-    # 確保結構存在
-    data.setdefault("flight_fares", {})
-    data["flight_fares"].setdefault(admin_flight_airline, {})
-    data["flight_fares"][admin_flight_airline].setdefault(admin_flight_airport, {})
-    airport_tbl = data["flight_fares"][admin_flight_airline][admin_flight_airport]
-
-    def _kind_out_back(label: str) -> tuple[int, int]:
-        kind = airport_tbl.get(label) or {}
-        return int(kind.get("out", 0) or 0), int(kind.get("back", 0) or 0)
-
-    a_out, a_back = _kind_out_back("成人")
-    c_out, c_back = _kind_out_back("兒童")
-    s_out, s_back = _kind_out_back("敬老")
-
-    col_a, col_c, col_s = st.columns(3)
-    with col_a:
-        st.markdown("**成人**")
-        admin_a_out = st.number_input(
-            "去程票價",
-            min_value=0,
-            step=50,
-            value=a_out,
-            key=f"admin_a_out__{admin_flight_airline}__{admin_flight_airport}",
-        )
-        admin_a_back = st.number_input(
-            "回程票價",
-            min_value=0,
-            step=50,
-            value=a_back,
-            key=f"admin_a_back__{admin_flight_airline}__{admin_flight_airport}",
-        )
-    with col_c:
-        st.markdown("**兒童**")
-        admin_c_out = st.number_input(
-            "去程票價",
-            min_value=0,
-            step=50,
-            value=c_out,
-            key=f"admin_c_out__{admin_flight_airline}__{admin_flight_airport}",
-        )
-        admin_c_back = st.number_input(
-            "回程票價",
-            min_value=0,
-            step=50,
-            value=c_back,
-            key=f"admin_c_back__{admin_flight_airline}__{admin_flight_airport}",
-        )
-    with col_s:
-        st.markdown("**敬老**")
-        admin_s_out = st.number_input(
-            "去程票價",
-            min_value=0,
-            step=50,
-            value=s_out,
-            key=f"admin_s_out__{admin_flight_airline}__{admin_flight_airport}",
-        )
-        admin_s_back = st.number_input(
-            "回程票價",
-            min_value=0,
-            step=50,
-            value=s_back,
-            key=f"admin_s_back__{admin_flight_airline}__{admin_flight_airport}",
-        )
-
-    col_btn1, col_btn2 = st.columns(2)
-    with col_btn1:
-        if st.button("更新機票票價（尚未保存）", use_container_width=True, key="admin_flight_update"):
-            airport_tbl["成人"] = {"out": int(admin_a_out), "back": int(admin_a_back)}
-            airport_tbl["兒童"] = {"out": int(admin_c_out), "back": int(admin_c_back)}
-            airport_tbl["敬老"] = {"out": int(admin_s_out), "back": int(admin_s_back)}
-            st.session_state.list_dirty = True
-            st.success("已更新（尚未保存）。")
-    with col_btn2:
-        if st.button("重置為預設（此航空＋出發地）", use_container_width=True, key="admin_flight_reset_default"):
-            defaults = default_flight_fares()
-            airport_default = defaults.get(admin_flight_airline, {}).get(admin_flight_airport, {})
-            if airport_default:
-                data["flight_fares"][admin_flight_airline][admin_flight_airport] = airport_default
-            else:
-                data["flight_fares"][admin_flight_airline][admin_flight_airport] = {}
-            st.session_state.list_dirty = True
-            st.success("已重置（尚未保存）。")
-
-    st.divider()
-
-    st.markdown("### 船票票價維護（boat_fares）")
-    boat_full = (data.get("boat_fares") or {}).get("full") or {}
-    boat_half = (data.get("boat_fares") or {}).get("half") or {}
-    col_bf1, col_bf2, col_bf3 = st.columns(3)
-    with col_bf1:
-        st.markdown("**全票**")
-        admin_boat_full_adult = st.number_input(
-            "成人", min_value=0, step=50, value=int(boat_full.get("adult", BOAT_FARE_ADULT) or 0), key="admin_boat_full_adult"
-        )
-        admin_boat_half_adult = st.number_input(
-            "半票成人（=全票成人）",
-            min_value=0,
-            step=50,
-            value=int(boat_half.get("adult", BOAT_FARE_ADULT) or 0),
-            key="admin_boat_half_adult",
-        )
-    with col_bf2:
-        admin_boat_full_child = st.number_input(
-            "兒童(全票)", min_value=0, step=50, value=int(boat_full.get("child", BOAT_FARE_CHILD) or 0), key="admin_boat_full_child"
-        )
-        admin_boat_half_child = st.number_input(
-            "兒童(半票)", min_value=0, step=50, value=int(boat_half.get("child", BOAT_FARE_HALF) or 0), key="admin_boat_half_child"
-        )
-    with col_bf3:
-        admin_boat_full_senior = st.number_input(
-            "敬老(全票)", min_value=0, step=50, value=int(boat_full.get("senior", BOAT_FARE_SENIOR) or 0), key="admin_boat_full_senior"
-        )
-        admin_boat_half_senior = st.number_input(
-            "敬老(半票)", min_value=0, step=50, value=int(boat_half.get("senior", BOAT_FARE_HALF) or 0), key="admin_boat_half_senior"
-        )
-
-    if st.button("更新船票票價（尚未保存）", use_container_width=True, key="admin_boat_update"):
-        data["boat_fares"]["full"] = {
-            "adult": int(admin_boat_full_adult),
-            "child": int(admin_boat_full_child),
-            "senior": int(admin_boat_full_senior),
-        }
-        data["boat_fares"]["half"] = {
-            "adult": int(admin_boat_half_adult),
-            "child": int(admin_boat_half_child),
-            "senior": int(admin_boat_half_senior),
-        }
-        st.session_state.list_dirty = True
-        st.success("已更新（尚未保存）。")
-
-    col_rb1, _ = st.columns(2)
-    with col_rb1:
-        if st.button("重置為預設（船票）", use_container_width=True, key="admin_boat_reset_default"):
-            data["boat_fares"] = default_boat_fares()
-            st.session_state.list_dirty = True
-            st.success("已重置（尚未保存）。")
-
-    st.divider()
-
-    st.markdown("### 機車/汽車費用維護（moto_car_fares）")
-    st.caption("此表用於前台「機車/汽車手動費用」1~6 人方案的預設值。")
-    moto_by_people = (data.get("moto_car_fares") or {}).get("moto_by_people") or [0] * 7
-    car_by_people = (data.get("moto_car_fares") or {}).get("car_by_people") or [0] * 7
-
-    admin_moto_inputs = {}
-    admin_car_inputs = {}
-    moto_cols = st.columns(2)
-    with moto_cols[0]:
-        st.markdown("**機車（1~6人方案總價）**")
-        for i in range(1, 7):
-            admin_moto_inputs[i] = st.number_input(
-                f"{i}人",
-                min_value=0,
-                step=50,
-                value=int(st.session_state.get(f"admin_moto_{i}", moto_by_people[i] if i < len(moto_by_people) else 0)),
-                key=f"admin_moto_{i}",
-            )
-    with moto_cols[1]:
-        st.markdown("**汽車（1~6人方案總價）**")
-        for i in range(1, 7):
-            admin_car_inputs[i] = st.number_input(
-                f"{i}人",
-                min_value=0,
-                step=50,
-                value=int(st.session_state.get(f"admin_car_{i}", car_by_people[i] if i < len(car_by_people) else 0)),
-                key=f"admin_car_{i}",
-            )
-
-    col_mc1, col_mc2 = st.columns(2)
-    with col_mc1:
-        if st.button("更新機車/汽車費用（尚未保存）", use_container_width=True, key="admin_moto_car_update"):
-            data["moto_car_fares"]["moto_by_people"] = [int(admin_moto_inputs.get(i, 0)) for i in range(0, 7)]
-            data["moto_car_fares"]["car_by_people"] = [int(admin_car_inputs.get(i, 0)) for i in range(0, 7)]
-            st.session_state.list_dirty = True
-            st.success("已更新（尚未保存）。")
-    with col_mc2:
-        if st.button("重置為預設（機車/汽車）", use_container_width=True, key="admin_moto_car_reset_default"):
-            data["moto_car_fares"] = default_moto_car_fares()
-            st.session_state.list_dirty = True
-            st.success("已重置（尚未保存）。")
-
-    st.markdown("### 客戶來源選項（報價單「客人來源」下拉）")
-    st.caption("與報價頁連動；最後一項為「其他（自填）」由程式保留，無須在此新增。")
-    new_src_tag = st.text_input("新增來源", key="new_customer_source_tag")
-    del_src = st.selectbox(
-        "刪除來源",
-        options=[""] + list(data.get("customer_sources", [])),
-        key="del_customer_source",
-    )
-    col_src_a, col_src_d = st.columns(2)
-    with col_src_a:
-        if st.button("增加來源", key="add_cust_src_btn", use_container_width=True):
-            v = (new_src_tag or "").strip()
-            if v:
-                if v not in data["customer_sources"]:
-                    data["customer_sources"].append(v)
-                    st.session_state.list_dirty = True
-                    st.success("已加入（尚未保存）。")
-                else:
-                    st.info("已存在。")
-                st.session_state["new_customer_source_tag"] = ""
-            else:
-                st.warning("請輸入來源名稱。")
-    with col_src_d:
-        if st.button("刪除來源", key="del_cust_src_btn", use_container_width=True):
-            v = (del_src or "").strip()
-            if v:
-                data["customer_sources"] = [x for x in data["customer_sources"] if x != v]
-                st.session_state.list_dirty = True
-                st.success("已刪除（尚未保存）。")
-            else:
-                st.warning("請先選擇要刪除的來源。")
-
-    st.divider()
-
-    st.markdown("### 客人名冊（名稱·來源·出發地）")
-    st.caption("建立後，報價頁「1b) 客戶資料」可一鍵帶入。")
-    if data.get("customers"):
-        for c in data["customers"]:
-            st.write(f"· **{c.get('name', '')}** ｜ 來源：{c.get('source', '')} ｜ 出發地：{c.get('departure', '')}")
-    else:
-        st.caption("（尚無資料）")
-
-    ad_n = st.text_input("新增客人 姓名", key="adm_new_cust_name")
-    ad_s = st.text_input("新增客人 來源", key="adm_new_cust_source")
-    ad_d = st.selectbox("新增客人 出發地", AIRPORT_OPTIONS, key="adm_new_cust_dep")
-    if st.button("加入客人", key="adm_add_cust_btn", use_container_width=True):
-        nm = (ad_n or "").strip()
-        if nm:
-            data.setdefault("customers", []).append(
-                {
-                    "id": uuid.uuid4().hex[:8],
-                    "name": nm,
-                    "source": (ad_s or "").strip(),
-                    "departure": ad_d,
-                }
-            )
-            st.session_state.list_dirty = True
-            st.session_state["adm_new_cust_name"] = ""
-            st.session_state["adm_new_cust_source"] = ""
-            st.success("已加入客人（尚未保存）。")
-        else:
-            st.warning("請輸入姓名。")
-
-    if data.get("customers"):
-        labels = [f"{c.get('name', '')}／{c.get('source', '')}／{c.get('departure', '')}" for c in data["customers"]]
-        del_ci = st.selectbox(
-            "刪除客人（選擇後按刪除）",
-            range(len(labels)),
-            format_func=lambda i: labels[i],
-            key="adm_del_cust_pick",
-        )
-        if st.button("刪除此客人", key="adm_del_cust_btn", use_container_width=True):
-            data["customers"].pop(int(del_ci))
-            st.session_state.list_dirty = True
-            st.success("已刪除（尚未保存）。")
 
     st.divider()
 
