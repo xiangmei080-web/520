@@ -500,7 +500,16 @@ theme_names = list(THEME_PRESETS.keys())
 if "ui_theme" not in st.session_state:
     st.session_state["ui_theme"] = "溫柔奶茶粉"
 if page == "前台（產生行程報到單）":
-    st.sidebar.selectbox("前台色系", theme_names, key="ui_theme")
+    current_theme = st.session_state.get("ui_theme", "溫柔奶茶粉")
+    if current_theme not in theme_names:
+        current_theme = "溫柔奶茶粉"
+    sidebar_theme = st.sidebar.selectbox(
+        "前台色系",
+        theme_names,
+        index=theme_names.index(current_theme),
+        key="ui_theme_sidebar",
+    )
+    st.session_state["ui_theme"] = sidebar_theme
 active_theme = THEME_PRESETS.get(st.session_state.get("ui_theme", "溫柔奶茶粉"), THEME_PRESETS["溫柔奶茶粉"])
 
 
@@ -2027,15 +2036,18 @@ if page == "後台管理":
 
 # 手機版側欄常收起，前台再提供一個頁內色系切換
 if page == "前台（產生行程報到單）":
-    if "ui_theme_front" not in st.session_state:
-        st.session_state["ui_theme_front"] = st.session_state.get("ui_theme", "溫柔奶茶粉")
-    st.selectbox(
+    current_theme = st.session_state.get("ui_theme", "溫柔奶茶粉")
+    if current_theme not in theme_names:
+        current_theme = "溫柔奶茶粉"
+    front_theme = st.selectbox(
         "前台色系（手機可在這裡切換）",
         theme_names,
+        index=theme_names.index(current_theme),
         key="ui_theme_front",
     )
-    st.session_state["ui_theme"] = st.session_state.get("ui_theme_front", "溫柔奶茶粉")
-    active_theme = THEME_PRESETS.get(st.session_state["ui_theme"], THEME_PRESETS["溫柔奶茶粉"])
+    if front_theme != st.session_state.get("ui_theme"):
+        st.session_state["ui_theme"] = front_theme
+        st.rerun()
 
 st.markdown(
     """
