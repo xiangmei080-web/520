@@ -41,6 +41,89 @@ NOTICE_TEXT = (
     "請遵守行程安全指示講解。違規者自行負責。"
 )
 
+FIXED_ITINERARIES = [
+    "南方4島+東吉.七美登島.藍洞",
+    "七美單程",
+    "望安單程",
+    "薰衣草浮潛+七美",
+    "東嶼坪登島+七美",
+    "吉貝來回",
+    "驚豔吉貝",
+    "吉貝+目斗嶼",
+    "吉貝小玩",
+    "吉貝輕旅行",
+    "北海1日遊",
+    "北海跳島1日遊-市區出航",
+    "黃昏之旅-市區出航",
+    "吉貝8合1水上加購",
+    "精選東海",
+    "超值東海",
+    "東海半日遊",
+    "星空之旅",
+    "與龍共舞-夕陽之約",
+    "員貝耍廢1日遊",
+    "悠遊員貝1日遊",
+    "員貝海牧之旅",
+    "員貝海牧+玩水之旅",
+    "海底漫步",
+    "浮潛",
+    "競速SUP",
+    "漁人潮間帶",
+    "海漫+浮潛",
+    "海洋牧場",
+    "夕遊海皇海牧+夜釣",
+    "夕遊海皇海牧+夜釣+煙火",
+    "夜釣小管",
+    "夜釣小管+煙火",
+    "煙火船",
+    "七美煙火",
+    "望安煙火",
+    "吉貝煙火",
+    "金色雙島",
+    "風帆三合1",
+    "獨木舟跨島",
+    "石斑豐魚季半日遊",
+    "忘憂島1日遊",
+    "鉅航龍蝦島1日遊",
+    "鉅航1日遊A",
+    "鉅航半日遊B",
+    "鉅航半日遊B1",
+    "鉅航樂活遊C行程",
+    "銀海超值1日遊",
+    "銀海遨遊東海B行程",
+    "銀海海田夢幻C行程",
+    "銀海浪漫之旅",
+    "銀海龍蝦島",
+    "盛夏育樂",
+]
+FIXED_LOCATIONS = [
+    "南海遊客中心",
+    "北海遊客中心",
+    "岐頭遊客中心",
+]
+FIXED_TRAVEL_AGENCIES = [
+    "丞欣旅行社",
+    "香妹旅行社",
+]
+FIXED_COUNTERS = [
+    "海安育樂",
+    "金八達育樂",
+    "得意育樂",
+    "和慶海洋牧場",
+    "海上皇宮",
+    "小丑魚",
+    "新揚育樂",
+    "戀夏育樂",
+    "鉅航育樂",
+    "銀海育樂",
+    "大姐燒烤",
+    "夏日燒烤",
+    "瘋燒烤",
+    "南碼燒烤",
+    "南海燒烤",
+    "369燒烤",
+]
+
 AIRPORT_OPTIONS = ["台北", "高雄", "台中", "台南", "嘉義", "花蓮", "台東", "金門", "澎湖"]
 AIRLINE_OPTIONS = ["華信航空", "立榮航空"]
 
@@ -322,6 +405,18 @@ data.setdefault("itineraries", [])
 data.setdefault("locations", {})
 data.setdefault("agencies", [])
 data.setdefault("counters", [])
+for _it in FIXED_ITINERARIES:
+    if _it and _it not in data["itineraries"]:
+        data["itineraries"].append(_it)
+for _loc in FIXED_LOCATIONS:
+    if _loc and _loc not in data["locations"]:
+        data["locations"][_loc] = map_url(_loc)
+for _ag in FIXED_TRAVEL_AGENCIES:
+    if _ag and _ag not in data["agencies"]:
+        data["agencies"].append(_ag)
+for _ct in FIXED_COUNTERS:
+    if _ct and _ct not in data["counters"]:
+        data["counters"].append(_ct)
 ensure_data_price_defaults(data)
 data.setdefault("customer_sources", ["FB", "Instagram", "Google", "LINE", "轉介", "舊客回購"])
 data.setdefault("customers", [])
