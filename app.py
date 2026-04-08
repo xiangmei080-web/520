@@ -410,7 +410,7 @@ for _it in FIXED_ITINERARIES:
         data["itineraries"].append(_it)
 for _loc in FIXED_LOCATIONS:
     if _loc and _loc not in data["locations"]:
-        data["locations"][_loc] = map_url(_loc)
+        data["locations"][_loc] = f"https://www.google.com/maps/search/{urllib.parse.quote(_loc)}"
 for _ag in FIXED_TRAVEL_AGENCIES:
     if _ag and _ag not in data["agencies"]:
         data["agencies"].append(_ag)

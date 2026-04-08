@@ -1,0 +1,8 @@
+itineraries.json
+locations.json
+*.tmp
+*.pyc
+.DS_Store
+__pycache__/
+.venv/
+venv/
