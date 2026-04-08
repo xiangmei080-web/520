@@ -1,6 +1,7 @@
 import streamlit as st
 import json, os, urllib.parse
 import uuid
+import re
 from datetime import date, datetime, timedelta
 from io import BytesIO
 import streamlit.components.v1 as components
@@ -309,6 +310,7 @@ QUOTE_SNAPSHOT_KEYS = (
     "sum_moto_people",
     "sum_moto_units",
     "sum_line_hotel_custom",
+    "sum_hotel_booking_text",
     "sum_line_moto_custom",
     "q_discount_amount",
 ) + tuple(f"hotel_{i}" for i in range(1, 7)) + tuple(f"moto_{i}" for i in range(1, 7)) + tuple(f"car_{i}" for i in range(1, 7))
@@ -471,6 +473,73 @@ def minus_30_minutes_hhmm(depart_hhmm: str) -> str:
 def checkin_display_from_depart(depart_hhmm: str) -> str:
     hhmm = minus_30_minutes_hhmm(depart_hhmm)
     return f"{hhmm}抵達" if hhmm else ""
+
+
+def parse_lodging_booking_text(raw_text: str) -> dict:
+    text = (raw_text or "").strip()
+    if not text:
+        return {}
+
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    date_range = ""
+    package_rooms = None
+    double_rooms = 0
+    quad_rooms = 0
+    people = None
+    contact_phone = ""
+    contact_name = ""
+
+    for ln in lines:
+        if not date_range:
+            m_date = re.search(r"(\d{1,2}\s*/\s*\d{1,2}\s*[-~～至]\s*\d{1,2}\s*/\s*\d{1,2})", ln)
+            if m_date:
+                date_range = re.sub(r"\s+", "", m_date.group(1))
+
+        m_pkg = re.search(r"(\d+)\s*間\s*包棟", ln)
+        if m_pkg:
+            package_rooms = int(m_pkg.group(1))
+
+        m_double = re.search(r"雙人\s*[*xX×]\s*(\d+)", ln)
+        if m_double:
+            double_rooms += int(m_double.group(1))
+
+        m_quad = re.search(r"四人\s*[*xX×]\s*(\d+)", ln)
+        if m_quad:
+            quad_rooms += int(m_quad.group(1))
+
+        if people is None:
+            m_people = re.search(r"(\d+)\s*(?:位|人)", ln)
+            if m_people:
+                people = int(m_people.group(1))
+
+        if not contact_phone:
+            m_phone = re.search(r"(09\d{2}[-\s]?\d{3}[-\s]?\d{3})", ln)
+            if m_phone:
+                contact_phone = re.sub(r"[-\s]", "", m_phone.group(1))
+                left = ln[: m_phone.start()].strip("：:，,　 ")
+                if left:
+                    contact_name = left
+
+    room_parts = []
+    if package_rooms is not None:
+        room_parts.append(f"{package_rooms}間包棟")
+    if double_rooms > 0:
+        room_parts.append(f"雙人*{double_rooms}")
+    if quad_rooms > 0:
+        room_parts.append(f"四人*{quad_rooms}")
+
+    out = {}
+    if date_range:
+        out["date_range"] = date_range
+    if room_parts:
+        out["room_desc"] = "＋".join(room_parts)
+    if people is not None:
+        out["people"] = int(people)
+    if contact_name:
+        out["contact_name"] = contact_name
+    if contact_phone:
+        out["contact_phone"] = contact_phone
+    return out
 
 
 def build_message(
@@ -1163,6 +1232,29 @@ def render_quote_app() -> None:
             sum_hotel_nights = st.number_input("住宿晚數", min_value=1, max_value=99, value=2, step=1, key="sum_hotel_nights")
         with sh3:
             sum_line_hotel_custom = st.text_input("自訂住宿一行（可留空）", "", key="sum_line_hotel_custom")
+        sum_hotel_booking_text = st.text_area(
+            "住宿預定文字（可貼上多行，自動解析）",
+            value=st.session_state.get("sum_hotel_booking_text", ""),
+            key="sum_hotel_booking_text",
+            height=100,
+            placeholder="5/21-5/23\n8間包棟\n顏義國 0953871627\n24位\n或\n雙人*6\n四人*3",
+        )
+        st.caption("可解析：日期區間、包棟、雙人*幾、四人*幾、聯絡人電話、人數。")
+        _preview_booking = parse_lodging_booking_text(sum_hotel_booking_text)
+        if _preview_booking:
+            preview_parts = []
+            if _preview_booking.get("date_range"):
+                preview_parts.append(f"日期：{_preview_booking.get('date_range')}")
+            if _preview_booking.get("room_desc"):
+                preview_parts.append(f"房型：{_preview_booking.get('room_desc')}")
+            if _preview_booking.get("people") is not None:
+                preview_parts.append(f"人數：{_preview_booking.get('people')}位")
+            _name = str(_preview_booking.get("contact_name", "")).strip()
+            _phone = str(_preview_booking.get("contact_phone", "")).strip()
+            if _name or _phone:
+                preview_parts.append(f"聯絡：{' '.join(x for x in [_name, _phone] if x)}")
+            if preview_parts:
+                st.info("住宿預定解析結果：" + "｜".join(preview_parts))
         sm1, sm2, sm3, sm4 = st.columns(4)
         with sm1:
             sum_moto_days = st.number_input("機車天數(摘要)", min_value=0, max_value=99, value=3, step=1, key="sum_moto_days")
@@ -1572,7 +1664,23 @@ def render_quote_app() -> None:
 
     summary_line_flight = f"機票來回｜{airline}｜{depart_airport}"
     _hc = (sum_line_hotel_custom or "").strip()
-    summary_line_hotel = _hc if _hc else f"住宿{sum_hotel_people}人{sum_hotel_nights}晚"
+    _hb = parse_lodging_booking_text(st.session_state.get("sum_hotel_booking_text", ""))
+    if _hc:
+        summary_line_hotel = _hc
+    elif _hb:
+        parts = []
+        if _hb.get("date_range"):
+            parts.append(str(_hb["date_range"]))
+        if _hb.get("room_desc"):
+            parts.append(str(_hb["room_desc"]))
+        if _hb.get("people") is not None:
+            parts.append(f"{int(_hb['people'])}位")
+        contact = " ".join(x for x in [str(_hb.get("contact_name", "")).strip(), str(_hb.get("contact_phone", "")).strip()] if x)
+        if contact:
+            parts.append(contact)
+        summary_line_hotel = "｜".join(parts) if parts else f"住宿{sum_hotel_people}人{sum_hotel_nights}晚"
+    else:
+        summary_line_hotel = f"住宿{sum_hotel_people}人{sum_hotel_nights}晚"
     _mc = (sum_line_moto_custom or "").strip()
     if _mc:
         summary_line_moto = _mc
