@@ -507,7 +507,6 @@ if page == "前台（產生行程報到單）":
         "前台色系",
         theme_names,
         index=theme_names.index(current_theme),
-        key="ui_theme_sidebar",
     )
     st.session_state["ui_theme"] = sidebar_theme
 active_theme = THEME_PRESETS.get(st.session_state.get("ui_theme", "溫柔奶茶粉"), THEME_PRESETS["溫柔奶茶粉"])
@@ -2043,7 +2042,6 @@ if page == "前台（產生行程報到單）":
         "前台色系（手機可在這裡切換）",
         theme_names,
         index=theme_names.index(current_theme),
-        key="ui_theme_front",
     )
     if front_theme != st.session_state.get("ui_theme"):
         st.session_state["ui_theme"] = front_theme
