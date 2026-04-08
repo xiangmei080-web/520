@@ -2027,16 +2027,15 @@ if page == "後台管理":
 
 # 手機版側欄常收起，前台再提供一個頁內色系切換
 if page == "前台（產生行程報到單）":
-    if st.session_state.get("ui_theme_front") != st.session_state.get("ui_theme"):
+    if "ui_theme_front" not in st.session_state:
         st.session_state["ui_theme_front"] = st.session_state.get("ui_theme", "溫柔奶茶粉")
     st.selectbox(
         "前台色系（手機可在這裡切換）",
         theme_names,
         key="ui_theme_front",
     )
-    if st.session_state.get("ui_theme") != st.session_state.get("ui_theme_front"):
-        st.session_state["ui_theme"] = st.session_state["ui_theme_front"]
-        active_theme = THEME_PRESETS.get(st.session_state["ui_theme"], THEME_PRESETS["溫柔奶茶粉"])
+    st.session_state["ui_theme"] = st.session_state.get("ui_theme_front", "溫柔奶茶粉")
+    active_theme = THEME_PRESETS.get(st.session_state["ui_theme"], THEME_PRESETS["溫柔奶茶粉"])
 
 st.markdown(
     """
