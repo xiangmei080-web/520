@@ -2042,8 +2042,10 @@ st.markdown(
     """
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;800&display=swap');
+  :root { color-scheme: light; }
   html, body, [class*="css"]  {
     font-family: 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+    color: #111827 !important;
   }
   [data-testid="stAppViewContainer"] { background: #fff7fb; }
   /* 手機上避免文字消失：強制表單區文字顏色 */
@@ -2053,6 +2055,9 @@ st.markdown(
   [data-testid="stAppViewContainer"] span,
   [data-testid="stAppViewContainer"] div {
     color: #111827;
+  }
+  [data-testid="stSidebar"] * {
+    color: #111827 !important;
   }
   /* Caption / 說明文字用深灰 */
   [data-testid="stAppViewContainer"] .stCaption,
@@ -2068,6 +2073,17 @@ st.markdown(
     border: 1px solid #fbcfe8 !important;
     border-radius: 14px !important;
     color: #111 !important;          /* 文字改黑色，清楚可讀 */
+  }
+  div[data-baseweb="select"] * {
+    color: #111827 !important;
+  }
+  div[data-baseweb="select"] > div {
+    background: #fff9fc !important;
+    border-radius: 14px !important;
+  }
+  div[role="listbox"] *,
+  ul[role="listbox"] * {
+    color: #111827 !important;
   }
   /* disabled（例如自動生成的報到時間） */
   div[data-testid="stTextInput"] input:disabled,
@@ -2133,6 +2149,10 @@ st.markdown(
 st.markdown(
     f"""
 <style>
+  :root {{ color-scheme: light; }}
+  html, body {{
+    color: #111827 !important;
+  }}
   [data-testid="stAppViewContainer"] {{ background: {active_theme['app_bg']} !important; }}
   div[data-testid="stTextInput"] input,
   div[data-testid="stTextArea"] textarea,
@@ -2147,6 +2167,17 @@ st.markdown(
     background: {active_theme['disabled_bg']} !important;
     color: {active_theme['disabled_text']} !important;
     -webkit-text-fill-color: {active_theme['disabled_text']} !important;
+  }}
+  div[data-baseweb="select"] * {{
+    color: #111827 !important;
+  }}
+  div[data-baseweb="select"] > div {{
+    background: {active_theme['input_bg']} !important;
+    border-radius: 14px !important;
+  }}
+  div[role="listbox"] *,
+  ul[role="listbox"] * {{
+    color: #111827 !important;
   }}
   .card {{
     border: 1px solid {active_theme['card_border']} !important;
