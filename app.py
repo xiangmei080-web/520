@@ -391,6 +391,8 @@ def build_message(
     loc_name,
     loc_url,
     agency,
+    passenger_name,
+    passenger_phone,
     island_transport,
     scooter_count,
 ) -> str:
@@ -399,6 +401,10 @@ def build_message(
 
     if date_str:
         lines.append(f"📅 日期：{date_str}")
+    if str(passenger_name).strip():
+        lines.append(f"🙍 旅客姓名：{passenger_name}")
+    if str(passenger_phone).strip():
+        lines.append(f"📞 旅客電話：{passenger_phone}")
     if str(checkin_t).strip():
         lines.append(f"🕐 報到時間：{checkin_t}")
     if str(depart_t).strip():
@@ -442,6 +448,35 @@ def build_message(
 def render_admin_panel() -> None:
     st.markdown("## 後台管理")
     st.caption("在這裡可隨時更改/增加/刪除行程、報到地點、報到櫃台、旅行社清單。")
+
+    # 備份/還原：避免重部署後資料遺失
+    st.markdown("### 備份與還原")
+    backup_json = json.dumps(data, ensure_ascii=False, indent=2)
+    st.download_button(
+        "下載目前清單備份（JSON）",
+        data=backup_json.encode("utf-8"),
+        file_name=f"quote_data_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+        mime="application/json",
+        use_container_width=True,
+    )
+    uploaded = st.file_uploader("匯入備份 JSON（覆蓋目前清單）", type=["json"], key="import_quote_data")
+    if uploaded is not None:
+        try:
+            obj = json.loads(uploaded.getvalue().decode("utf-8"))
+            obj.setdefault("itineraries", [])
+            obj.setdefault("locations", {})
+            obj.setdefault("agencies", [])
+            obj.setdefault("counters", [])
+            merge_fixed_items(obj)
+            st.session_state.data = obj
+            save_data(st.session_state.data)
+            st.session_state.list_dirty = False
+            st.success("已匯入並保存備份資料。")
+            st.rerun()
+        except Exception as e:
+            st.error(f"匯入失敗：{e}")
+
+    st.divider()
 
     if st.session_state.list_dirty:
         st.warning("目前有變更尚未保存，請按下「保存鍵」。")
@@ -1861,7 +1896,27 @@ else:
     st.info(f"已選歷史行程：**{itinerary}**")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ── ③ 人數 ────────────────────────────────────────────────────────
+# ── ③ 旅客姓名 ───────────────────────────────────────────────────
+st.markdown('<div class="card">', unsafe_allow_html=True)
+st.markdown('<div class="section-title">🙍 旅客姓名</div>', unsafe_allow_html=True)
+pn1, pn2 = st.columns(2)
+with pn1:
+    passenger_name = st.text_input(
+        "旅客姓名",
+        placeholder="例：王小明",
+        label_visibility="visible",
+        key="passenger_name",
+    )
+with pn2:
+    passenger_phone = st.text_input(
+        "旅客電話",
+        placeholder="例：0912345678",
+        label_visibility="visible",
+        key="passenger_phone",
+    )
+st.markdown("</div>", unsafe_allow_html=True)
+
+# ── ④ 人數 ────────────────────────────────────────────────────────
 st.markdown('<div class="card">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">👥 人數</div>', unsafe_allow_html=True)
 
@@ -1873,7 +1928,7 @@ total = adults + children + infants
 st.caption(f"合計：**{total} 人**（成人 {adults}、兒童 {children}、幼兒 {infants}）")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ── ④ 島上交通 ────────────────────────────────────────────────────
+# ── ⑤ 島上交通 ────────────────────────────────────────────────────
 st.markdown('<div class="card">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">🛵 島上交通</div>', unsafe_allow_html=True)
 island_transport = st.selectbox(
@@ -1893,7 +1948,7 @@ if island_transport == "機車":
     )
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ── ⑤ 地點 ────────────────────────────────────────────────────────
+# ── ⑥ 地點 ────────────────────────────────────────────────────────
 st.markdown('<div class="card">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">📍 報到地點</div>', unsafe_allow_html=True)
 
@@ -1934,7 +1989,7 @@ else:
         )
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ── ⑥ 備註 & 旅行社 ──────────────────────────────────────────────
+# ── ⑦ 備註 & 旅行社 ──────────────────────────────────────────────
 st.markdown('<div class="card">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">📝 備註 ＆ 旅行社</div>', unsafe_allow_html=True)
 
@@ -1984,6 +2039,8 @@ msg = build_message(
     loc_name,
     loc_url,
     agency,
+    passenger_name,
+    passenger_phone,
     island_transport,
     int(scooter_count) if island_transport == "機車" else 0,
 )
