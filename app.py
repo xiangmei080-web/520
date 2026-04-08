@@ -388,7 +388,13 @@ def ensure_data_price_defaults(d: dict) -> None:
 
 
 def _default_data() -> dict:
-    return {"itineraries": [], "locations": {}, "agencies": [], "counters": []}
+    return {
+        "itineraries": [],
+        "locations": {},
+        "agencies": [],
+        "counters": [],
+        "notice_text": NOTICE_TEXT,
+    }
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -563,6 +569,7 @@ for _ct in FIXED_COUNTERS:
 ensure_data_price_defaults(data)
 data.setdefault("customer_sources", ["FB", "Instagram", "Google", "LINE", "轉介", "舊客回購"])
 data.setdefault("customers", [])
+data.setdefault("notice_text", NOTICE_TEXT)
 
 page = st.sidebar.radio("功能選單", ["前台（產生行程報到單）", "後台管理"])
 theme_names = list(THEME_PRESETS.keys())
@@ -754,6 +761,7 @@ def build_message(
     passenger_phone,
     island_transport,
     scooter_count,
+    notice_text,
 ) -> str:
     date_str = sel_date.strftime("%Y/%m/%d")
     lines = ["📋 行程報到單"]
@@ -800,7 +808,8 @@ def build_message(
     if str(agency).strip():
         lines.append(f"🏢 旅行社：{agency}")
 
-    lines += ["", f"⚠️ {NOTICE_TEXT}"]
+    if str(notice_text).strip():
+        lines += ["", f"⚠️ {notice_text}"]
     return "\n".join(lines)
 
 
@@ -826,6 +835,7 @@ def render_admin_panel() -> None:
             obj.setdefault("locations", {})
             obj.setdefault("agencies", [])
             obj.setdefault("counters", [])
+            obj.setdefault("notice_text", NOTICE_TEXT)
             merge_fixed_items(obj)
             st.session_state.data = obj
             save_data(st.session_state.data)
@@ -881,6 +891,27 @@ def render_admin_panel() -> None:
             st.success("已恢復預設排序（自訂行程保留在後方）。")
             st.rerun()
 
+    st.markdown("### 注意事項（前台顯示/複製內容）")
+    admin_notice_text = st.text_area(
+        "注意事項內容（可留空）",
+        value=data.get("notice_text", NOTICE_TEXT),
+        key="admin_notice_text",
+        height=100,
+        placeholder="留空表示前台不顯示注意事項",
+    )
+    n1, n2 = st.columns(2)
+    with n1:
+        if st.button("更新注意事項", key="save_notice_text", use_container_width=True):
+            data["notice_text"] = admin_notice_text
+            st.session_state.list_dirty = True
+            st.success("已更新注意事項（尚未保存）。")
+    with n2:
+        if st.button("清空注意事項（無字）", key="clear_notice_text", use_container_width=True):
+            data["notice_text"] = ""
+            st.session_state["admin_notice_text"] = ""
+            st.session_state.list_dirty = True
+            st.success("已清空注意事項（尚未保存）。")
+
     st.divider()
 
     if st.session_state.list_dirty:
@@ -900,6 +931,7 @@ def render_admin_panel() -> None:
             "del_counter",
             "new_agency",
             "del_agency",
+            "admin_notice_text",
         ]:
             st.session_state[k] = ""
         st.rerun()
@@ -2375,7 +2407,9 @@ st.markdown(
 )
 
 # 頂部注意事項
-st.markdown(f"<div class='notice-bar'>⚠️ {NOTICE_TEXT}</div>", unsafe_allow_html=True)
+notice_text = data.get("notice_text", NOTICE_TEXT)
+if str(notice_text).strip():
+    st.markdown(f"<div class='notice-bar'>⚠️ {notice_text}</div>", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════
 #  表單區
@@ -2615,6 +2649,7 @@ msg = build_message(
     passenger_phone,
     island_transport,
     int(scooter_count) if island_transport == "機車" else 0,
+    data.get("notice_text", NOTICE_TEXT),
 )
 
 st.markdown("### 📄 行程報到單預覽")
@@ -2708,14 +2743,15 @@ function showDone() {{
 #  底部固定注意事項
 # ══════════════════════════════════════════════════════════════════
 st.markdown("---")
-st.markdown(
-    f"""
+if str(notice_text).strip():
+    st.markdown(
+        f"""
 <div class='bottom-notice' style='border-radius:12px;
             padding:1rem 1.5rem;font-size:.92rem;text-align:center'>
   <b>📢 注意事項</b><br><br>
-  {NOTICE_TEXT}
+  {notice_text}
 </div>
 """,
-    unsafe_allow_html=True,
-)
+        unsafe_allow_html=True,
+    )
 
