@@ -748,6 +748,7 @@ def build_message(
     sel_date,
     checkin_t,
     depart_t,
+    depart_t_extra,
     counter,
     itinerary,
     adults,
@@ -776,6 +777,8 @@ def build_message(
         lines.append(f"🕐 報到時間：{checkin_t}")
     if str(depart_t).strip():
         lines.append(f"🚢 出發時間：{depart_t}")
+    if str(depart_t_extra).strip():
+        lines.append(f"🕒 出發時間（手動補充）：{depart_t_extra}")
     if str(itinerary).strip():
         lines.append(f"🗺️ 行程：{itinerary}")
     if str(loc_name).strip():
@@ -2460,6 +2463,12 @@ with col_dep:
         st.session_state["checkin_auto"] = checkin_auto
         if checkin_auto:
             st.caption(f"報到時間（自動）：{checkin_auto}")
+depart_t_extra = st.text_input(
+    "出發時間（手動補充，額外欄位）",
+    value="",
+    placeholder="例如：19:30（此欄不影響自動報到時間）",
+    key="depart_manual_extra",
+)
 st.markdown("</div>", unsafe_allow_html=True)
 
 # 報到櫃台
@@ -2636,6 +2645,7 @@ msg = build_message(
     sel_date,
     st.session_state.get("checkin_auto", ""),
     depart_t,
+    depart_t_extra,
     counter,
     itinerary,
     adults,
